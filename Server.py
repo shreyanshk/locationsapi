@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, Float, create_engine, func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from flask import Flask, request, abort, render_template
 from math import radians, cos, sin, asin, sqrt
@@ -26,8 +27,8 @@ class Location(Base):
         self.lng = lng
 
 ##### USE database migration tools such al alembic
-Base.metadata.drop_all(engine)
-Base.metadata.create_all(engine)
+#Base.metadata.drop_all(engine)
+#Base.metadata.create_all(engine)
 #####
 
 session = Session(engine)
@@ -42,7 +43,8 @@ def postLocation():
     session.add(req)
     try:
         session.commit()
-    except Exception:
+    except IntegrityError:
+        session.rollback()
         abort(409)
     return "Created", 201
 
