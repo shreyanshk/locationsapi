@@ -28,17 +28,18 @@ API Documentation
 -----------------
 The APIs implemented are:
 1. "/post_location", HTTP method = POST
->Accepts JSON with 3 values: string name, float lat, float lng
->Returns HTTP400 for malformed requests and HTTP409 if "name" already exists.
->Returns HTTP201 for successful requests.
+* Accepts JSON with 3 values: string name, float lat, float lng
+* Returns HTTP400 for malformed requests and HTTP409 if "name" already exists.
+* Returns HTTP201 for successful requests.
 
 2. "/get_using_self", HTTP method = GET
->Accepts 3 parameters in the URL with values: float dist, float lat, float lng
->Computation is handled in the server itself
->Returns HTTP400 for malformed requests.
->Returns JSON object on success with the structure {name: {lat, lng}}
+* Accepts 3 parameters in the URL with values: float dist, float lat, float lng
+* Computation is handled in the server itself
+* Returns HTTP400 for malformed requests.
+* Returns JSON object on success with the structure {name: {lat, lng}}
 
 3. "/get_using_postgres", HTTP method = GET
->Accepts 3 parameters in the URL with values: float dist, float lat, float lng
->Computation is handled by the Postgres extension earthdistance.
->Returns HTTP400 for malformed requests
+* Accepts 3 parameters in the URL with values: float dist, float lat, float lng
+* Computation is handled by the Postgres extension earthdistance.
+* Returns HTTP400 for malformed requests
+* Returns JSON object on success with the structure {name: {lat, lng}}
