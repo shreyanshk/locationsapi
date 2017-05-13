@@ -1,47 +1,47 @@
+from sqlalchemy import Column, String, Float, create_engine, func
+from sqlalchemy.orm import Session
+from sqlalchemy.ext.declarative import declarative_base
 from flask import Flask, request, abort, render_template
-from flask_sqlalchemy import SQLAlchemy
-from psycopg2 import IntegrityError
 from math import radians, cos, sin, asin, sqrt
 import json
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://shreyansh@localhost/locations'
 app.jinja_env.auto_reload = True
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 
-dbctx = SQLAlchemy(app)
-#maybe make index of all locations
+engine = create_engine("postgresql://shreyansh@localhost/locations")
 
-class Location(dbctx.Model):
+Base = declarative_base()
+
+class Location(Base):
     __tablename__ = "locationsTable"
-    name = dbctx.Column(dbctx.String(50), primary_key = True)
-    lat = dbctx.Column(dbctx.Float(), nullable = False)
-    lng = dbctx.Column(dbctx.Float(), nullable = False)
+    name = Column(String(50), primary_key = True)
+    lat = Column(Float, nullable = False)
+    lng = Column(Float, nullable = False)
 
     def __init__(self, name, lat, lng):
         self.name = name[:50]
         self.lat = lat
         self.lng = lng
 
-dbctx.create_all()
+##### USE database migration tools such al alembic
+Base.metadata.drop_all(engine)
+Base.metadata.create_all(engine)
+#####
+
+session = Session(engine)
 
 @app.route("/post_location", methods = ["POST"])
 def postLocation():
-    #make http errors more specific and helpful
     try:
         r = json.loads(request.data)
-    except ValueError:
-        abort(400)
-    try:
         req = Location(r['name'], r['lat'], r['lng'])
-    except KeyError:
+    except (ValueError, KeyError):
         abort(400)
-    dbctx.session.add(req)
+    session.add(req)
     try:
-        dbctx.session.commit()
-    #use more specific exception and return status
+        session.commit()
     except Exception:
         abort(409)
     return "Created", 201
@@ -69,10 +69,11 @@ def getUsingSelf():
     except KeyError:
         abort(400)
     dist, lat, lng = float(dist), float(lat), float(lng)
-    locations = Location.query.all()
+    #use a better approach
+    locations = session.query(Location)
     filtered = {}
     for l in locations:
-        if haversine(l.lat, l.lng, lat, lng) < dist:
+        if haversine(l.lat, l.lng, lat, lng) <= dist:
             record = {
                 "lat": l.lat,
                 "lng": l.lng,
@@ -83,21 +84,40 @@ def getUsingSelf():
 @app.route("/get_using_postgres")
 def getUsingPostgres():
     r = request.args
-"""try:
+    try:
         dist, lat, lng = (r['dist'], r['lat'], r['lng'])
-    except KeyError:
-        abort(400)"""
+        #earthbox takes distance in meters
+        dist = float(dist) * 1000
+        lat = float(lat)
+        lng = float(lng)
+    except (KeyError, ValueError):
+        abort(400)
+    #possibility of sql injection is taken care during conversion to float
+    #maybe create an index
+    locations = session.execute(
+        'select * from "locationsTable" \
+        where earth_box(ll_to_earth({0}, {1}), {2}) @> \
+        ll_to_earth(lat, lng)'.format(lat, lng, dist)
+        )
+    rtval = {}
+    for location in locations:
+        rtval[location.name] = {
+            "lat": location.lat,
+            "lng": location.lng,
+        }
+    return json.dumps(rtval)
+
 
 @app.route("/filldb", methods = ["GET"])
 def fillDb():
-    for lat in range(0, 360):
+    for lat in range(0, 90):
         print("Starting lat: " + str(lat))
-        for lng in range(0, 720):
+        for lng in range(0, 180):
             name = "lat" + str(lat) + "lng" + str(lng)
-            req = Location(name, lat/4, lng/4)
-            dbctx.session.add(req)
+            req = Location(name, lat, lng)
+            session.add(req)
     print("Now committing.")
-    dbctx.session.commit()
+    session.commit()
     return "dumped"
 
 app.run(host = "127.0.0.1", port = 5000)
