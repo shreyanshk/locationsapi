@@ -1,37 +1,10 @@
-from sqlalchemy import Column, String, Float, create_engine, func
-from sqlalchemy.orm import Session
+from dbModels import session, Location
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.declarative import declarative_base
-from flask import Flask, request, abort, render_template
+from flask import Flask, request, abort
 from math import radians, cos, sin, asin, sqrt
 import json
 
 app = Flask(__name__)
-app.jinja_env.auto_reload = True
-app.jinja_env.trim_blocks = True
-app.jinja_env.lstrip_blocks = True
-
-engine = create_engine("postgresql://shreyansh@localhost/locations")
-
-Base = declarative_base()
-
-class Location(Base):
-    __tablename__ = "locationsTable"
-    name = Column(String(50), primary_key = True)
-    lat = Column(Float, nullable = False)
-    lng = Column(Float, nullable = False)
-
-    def __init__(self, name, lat, lng):
-        self.name = name[:50]
-        self.lat = lat
-        self.lng = lng
-
-##### USE database migration tools such al alembic
-#Base.metadata.drop_all(engine)
-#Base.metadata.create_all(engine)
-#####
-
-session = Session(engine)
 
 @app.route("/post_location", methods = ["POST"])
 def postLocation():
@@ -71,7 +44,6 @@ def getUsingSelf():
     except KeyError:
         abort(400)
     dist, lat, lng = float(dist), float(lat), float(lng)
-    #use a better approach
     locations = session.query(Location)
     filtered = {}
     for l in locations:
@@ -101,13 +73,13 @@ def getUsingPostgres():
         where earth_box(ll_to_earth({0}, {1}), {2}) @> \
         ll_to_earth(lat, lng)'.format(lat, lng, dist)
         )
-    rtval = {}
-    for location in locations:
-        rtval[location.name] = {
-            "lat": location.lat,
-            "lng": location.lng,
+    rtdata = {}
+    for l in locations:
+        rtdata[l.name] = {
+            "lat": l.lat,
+            "lng": l.lng,
         }
-    return json.dumps(rtval)
+    return json.dumps(rtdata)
 
 
 @app.route("/filldb", methods = ["GET"])
